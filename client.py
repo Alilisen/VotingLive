@@ -180,7 +180,6 @@ class VotingClient(QWidget):
                 " font-size:18px; font-weight:bold; }"
                 " QPushButton:hover { background-color:#330066; }"
             )
-            # désactiver si déjà voté
             btn.setEnabled(not already_voted)
             btn.clicked.connect(partial(self.send_vote, text))
             self.buttons.append(btn)
@@ -192,9 +191,11 @@ class VotingClient(QWidget):
         if idx in self.voted_polls:
             return
         timestamp = int(datetime.now().timestamp())
+        # Payload avec la question associée
         payload = json.dumps({
-            "pseudo": self.pseudo,
-            "reponse": choice,
+            "pseudo":   self.pseudo,
+            "question": self.lbl_question.text(),
+            "reponse":  choice,
             "timestamp": timestamp
         })
         self.client.publish(TOPIC_VOTE, payload)
@@ -214,7 +215,6 @@ class VotingClient(QWidget):
 
         # Marquer module comme voté
         self.voted_polls.add(idx)
-        # Désactiver boutons
         for b in self.buttons:
             b.setEnabled(False)
 
@@ -222,18 +222,15 @@ class VotingClient(QWidget):
         self.show_poll_list()
 
     def show_poll_list(self):
-        # Cacher section vote
         self.lbl_question.hide()
         for b in self.buttons:
             b.hide()
 
-        # Vider ancien contenu
         while self.list_layout.count():
             child = self.list_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
 
-        # Créer blocs pour sondages non votés
         available = False
         for idx, (question, _) in enumerate(self.polls):
             if idx in self.voted_polls:
