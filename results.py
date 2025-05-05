@@ -11,8 +11,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 # -------- CONFIG --------
 BROKER = "broker.hivemq.com"
 PORT = 1883
-TOPIC_VOTE = "votinglivepoll/vote"
-TOPIC_QUESTION = "votinglivepoll/question"
+TOPIC_VOTE = "votinglivepollbis/vote"
+TOPIC_QUESTION = "votinglivepollbis/question"
 # ------------------------
 
 class Communicate(QObject):
@@ -35,22 +35,19 @@ class VoteResults(QWidget):
         self.comm.update_question_signal.connect(self.update_question)
 
     def init_ui(self):
-        """Initial UI setup"""
         self.layout = QVBoxLayout()
 
         # Display the question
         self.question = QLabel("En attente de question...")
         self.layout.addWidget(self.question)
 
-        # Set up the figure and canvas for the histogram
-        self.fig, self.ax = plt.subplots(figsize=(5, 3))
+        self.fig, (self.ax, self.ax_pie) = plt.subplots(1, 2, figsize=(10, 5))
         self.canvas = FigureCanvas(self.fig)
         self.layout.addWidget(self.canvas)
 
         self.setLayout(self.layout)
 
     def init_mqtt(self):
-        """Initialize MQTT client"""
         self.client = mqtt.Client()
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
@@ -58,13 +55,11 @@ class VoteResults(QWidget):
         self.client.loop_start()
 
     def on_connect(self, client, userdata, flags, rc):
-        """MQTT connection callback"""
         print("Connecté au broker MQTT.")
         client.subscribe(TOPIC_QUESTION)
         client.subscribe(TOPIC_VOTE)
 
     def on_message(self, client, userdata, msg):
-        """MQTT message received callback"""
         if msg.topic == TOPIC_QUESTION:
             data = json.loads(msg.payload.decode())
             question = data.get("question", "")
@@ -78,10 +73,8 @@ class VoteResults(QWidget):
             self.comm.update_vote_signal.emit(response, 1)
 
     def update_question(self, question, choices):
-        """Mise à jour de la question et des résultats de vote"""
         self.question.setText(question)
 
-        # Remove old results and reset the list of results
         for vr in self.voteresults:
             self.layout.removeWidget(vr)
             vr.deleteLater()
@@ -89,53 +82,65 @@ class VoteResults(QWidget):
         self.voteresults = []
         self.vote_counts = {}
 
-        # Initialize the votes to 0 for each choice
         for choice in choices:
             self.vote_counts[choice] = 0
 
-        # Add the labels to the UI
         for choice in choices:
             vr = QLabel(f"{choice}: 0 votes")
             self.voteresults.append(vr)
             self.layout.addWidget(vr)
 
-        # Update the bar chart
         self.update_histogram()
+        self.update_pie_chart()
 
     def update_votes(self, response, increment):
-        """Update the vote count"""
         if response in self.vote_counts:
             self.vote_counts[response] += increment
             print(self.vote_counts)
 
-            # Update the text for the choice
             for i in range(len(self.voteresults)):
                 if self.voteresults[i].text().startswith(response):
                     self.voteresults[i].setText(f"{response}: {self.vote_counts[response]} votes")
 
-            # Update the bar chart after each vote
             self.update_histogram()
+            self.update_pie_chart()
 
     def update_histogram(self):
-        """Update the histogram to reflect the current vote counts"""
         choices = list(self.vote_counts.keys())
         votes = list(self.vote_counts.values())
 
-        # Clear previous data
+        filtered_choices = [choice for choice, vote in zip(choices, votes) if vote > 0]
+        filtered_votes = [vote for vote in votes if vote > 0]
+
         self.ax.clear()
 
-        # Plot the new bar chart
-        self.ax.bar(choices, votes, color='skyblue')
+        if filtered_choices:
+            self.ax.bar(filtered_choices, filtered_votes, color='skyblue')
 
-        # Add labels and title
-        self.ax.set_xlabel('Choices')
-        self.ax.set_ylabel('Votes')
-        self.ax.set_title('Voting Results')
+            self.ax.set_xlabel('Choices')
+            self.ax.set_ylabel('Votes')
+            self.ax.set_title('Voting Results')
+        else:
+            self.ax.set_title('No votes yet')
+            self.ax.set_xlabel('Choices')
+            self.ax.set_ylabel('Votes')
 
-        # Redraw the canvas
         self.canvas.draw()
 
-# Lancer l'application
+    def update_pie_chart(self):
+        filtered_choices = [choice for choice, vote in self.vote_counts.items() if vote > 0]
+        filtered_votes = [vote for vote in self.vote_counts.values() if vote > 0]
+
+        self.ax_pie.clear()
+
+        if filtered_choices:
+            self.ax_pie.pie(filtered_votes, labels=filtered_choices, autopct='%1.1f%%', colors=['#ff9999','#66b3ff','#99ff99','#ffcc99'])
+            self.ax_pie.set_title('Voting Results')
+        else:
+            self.ax_pie.set_title('No votes yet')
+
+        self.canvas.draw()
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = VoteResults()
