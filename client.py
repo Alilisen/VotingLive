@@ -82,6 +82,9 @@ class VotingClient(QWidget):
         self.voted_polls = set()    # indices des sondages déjà votés
         self.current_poll_idx = None
 
+        # nouveau dict local pour compter les votes par question/choix
+        self.vote_counts = {}
+
         self.setWindowTitle(f"Sondage live — {pseudo}")
         self.resize(800, 600)
         self.setStyleSheet("background-color: #0d0026;")
@@ -140,18 +143,26 @@ class VotingClient(QWidget):
 
     def on_connect(self, client, userdata, flags, rc):
         client.subscribe(TOPIC_QUESTION)
+        client.subscribe(TOPIC_VOTE)
 
     def on_message(self, client, userdata, msg):
-        try:
-            data = json.loads(msg.payload.decode())
+        data = json.loads(msg.payload.decode())
+        if msg.topic == TOPIC_QUESTION:
             question = data["question"]
-            choices = data["choices"]
-        except Exception:
-            return
-        # Stocker le sondage et émettre son index
-        idx = len(self.polls)
-        self.polls.append((question, choices))
-        self.question_signal.emit(idx, question, choices)
+            choices  = data["choices"]
+            # initialise le compteur local pour cette question
+            self.vote_counts[question] = {c: 0 for c in choices}
+            # stocker et émettre
+            idx = len(self.polls)
+            self.polls.append((question, choices))
+            self.question_signal.emit(idx, question, choices)
+
+        elif msg.topic == TOPIC_VOTE:
+            # réception globale des votes
+            q = data.get("question")
+            r = data.get("reponse")
+            if q in self.vote_counts and r in self.vote_counts[q]:
+                self.vote_counts[q][r] += 1
 
     def handle_question(self, idx, question, choices):
         self.current_poll_idx = idx
@@ -170,6 +181,7 @@ class VotingClient(QWidget):
             self.grid.removeWidget(b)
             b.deleteLater()
         self.buttons.clear()
+
         # Créer boutons de choix
         for i, text in enumerate(choices):
             btn = QPushButton(f"{chr(65 + i)}. {text}")
@@ -191,20 +203,29 @@ class VotingClient(QWidget):
         if idx in self.voted_polls:
             return
         timestamp = int(datetime.now().timestamp())
-        # Payload avec la question associée
+        question = self.lbl_question.text()
+
         payload = json.dumps({
             "pseudo":   self.pseudo,
-            "question": self.lbl_question.text(),
+            "question": question,
             "reponse":  choice,
             "timestamp": timestamp
         })
         self.client.publish(TOPIC_VOTE, payload)
 
+        # MAJ locale immédiate + calcul du pourcentage
+        self.vote_counts[question][choice] += 1
+        total = sum(self.vote_counts[question].values())
+        pct   = self.vote_counts[question][choice] / total * 100
+
         # Confirmation
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Information)
         msg.setWindowTitle("Succès")
-        msg.setText("Votre vote a été enregistré !")
+        msg.setText(
+            f"Votre vote a été enregistré !\n\n"
+            f"{pct:.1f}% des votants ont choisi la même réponse."
+        )
         msg.setStyleSheet(
             "QLabel { color: white; }"
             "QPushButton { color: white; background-color: #8f00ff;"
@@ -243,7 +264,7 @@ class VotingClient(QWidget):
                 "QPushButton { color: white; background-color: #1a0033;"
                 " border:3px solid #9b4dff; border-radius:15px;"
                 " font-size:18px; text-align:left; padding:20px; }"
-                "QPushButton:hover { background-color:#330066; }"
+                " QPushButton:hover { background-color:#330066; }"
             )
             block.clicked.connect(partial(self.handle_question, idx, question, self.polls[idx][1]))
             self.list_layout.addWidget(block)
