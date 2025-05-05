@@ -102,6 +102,7 @@ class VotingClient(QWidget):
         grid.setSpacing(30)
 
         self.buttons = []
+        self.choices = []  # Store the choices here
         for i in range(4):
             btn = QPushButton(f"{chr(65 + i)}. Réponse {i + 1}")
             btn.setEnabled(False)
@@ -119,7 +120,7 @@ class VotingClient(QWidget):
                     background-color: #330066;
                 }
             """)
-            btn.clicked.connect(lambda _, index=i: self.send_vote(index))
+            btn.clicked.connect(lambda _, index=i: self.send_vote(self.choices[index]))
             self.buttons.append(btn)
 
         grid.addWidget(self.buttons[0], 0, 0)
@@ -151,21 +152,23 @@ class VotingClient(QWidget):
                 raise ValueError("Message JSON incomplet.")
 
             self.label.setText(question)
+            self.choices = choix  # Store the choices in the choices list
             for i in range(4):
-                self.buttons[i].setText(f"{chr(65+i)}. {choix[i]}")
+                self.buttons[i].setText(f"{chr(65 + i)}. {choix[i]}")
                 self.buttons[i].setEnabled(True)
 
         except Exception as e:
             print(f"Erreur de parsing du message : {e}")
 
-    def send_vote(self, index):
-        reponse = chr(65 + index)
+    def send_vote(self, choice):
+        # Send the actual response text instead of index
         message = {
             "pseudo": self.pseudo,
-            "reponse": reponse
+            "reponse": choice
         }
         self.client.publish(TOPIC_VOTE, json.dumps(message))
-        QMessageBox.information(self, "Vote envoyé", f"{self.pseudo}, tu as voté : {reponse}")
+        QMessageBox.information(self, "Vote envoyé", f"{self.pseudo}, tu as voté : {choice}")
+
 
 # Lancer l'application
 if __name__ == "__main__":
