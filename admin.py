@@ -21,22 +21,21 @@ TOPIC_QUESTION = "votinglivepoll/question"
 
 class Communicate(QObject):
     new_poll = pyqtSignal(int, str, list)
-    new_vote = pyqtSignal(str, str, float)  # question, choice, timestamp
+    new_vote = pyqtSignal(str, str, float)
 
 
 class VoteResults(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Résultats des sondages")
+        self.setWindowTitle("Poll Manager")
         self.setStyleSheet("background-color: #1f0036;")
         self.resize(1250, 800)
 
-        # Données
-        self.polls                  = []  # [{question, choices}]
-        self.vote_counts_list       = []  # [{choice: count}]
-        self.time_series_total_list = []  # [[(t_rel, total), ...]]
-        self.series_per_choice_list = []  # [{choice: [(t_rel, count), ...]}]
-        self.start_times            = []  # [first_timestamp]
+        self.polls                  = []
+        self.vote_counts_list       = []
+        self.time_series_total_list = []
+        self.series_per_choice_list = []
+        self.start_times            = []
 
         # Signaux
         self.comm = Communicate()
@@ -54,13 +53,11 @@ class VoteResults(QWidget):
         root.setContentsMargins(10, 10, 10, 10)
         root.setSpacing(20)
 
-        # ─── COLONNE GAUCHE : liste des sondages + bouton ─────────
         left = QVBoxLayout()
         lbl = QLabel("Sélection des sondages")
         lbl.setStyleSheet("QLabel { color: white; font-size: 22px; font-weight: bold; }")
         left.addWidget(lbl)
 
-        # Scroll area pour la liste
         self.poll_list_area = QScrollArea()
         self.poll_list_area.setWidgetResizable(True)
         frame = QFrame()
@@ -68,12 +65,10 @@ class VoteResults(QWidget):
         self.poll_list_layout = QVBoxLayout(frame)
         self.poll_list_layout.setContentsMargins(5, 5, 5, 5)
         self.poll_list_layout.setSpacing(8)
-        # Stretch pour coller les boutons en haut
         self.poll_list_layout.addStretch(1)
         self.poll_list_area.setWidget(frame)
         left.addWidget(self.poll_list_area, 1)
 
-        # Bouton pour lancer host.py
         run_btn = QPushButton("Lancer le créateur de sondage")
         run_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         run_btn.setStyleSheet("""
@@ -90,13 +85,12 @@ class VoteResults(QWidget):
             }
         """)
         run_btn.clicked.connect(
-            lambda: subprocess.Popen([sys.executable, "host.py"])
+            lambda: subprocess.Popen([sys.executable, "question_creation.py"])
         )
         left.addWidget(run_btn)
 
         root.addLayout(left, 1)
 
-        # ─── COLONNE DROITE : résultats ───────────────────────────────
         right = QVBoxLayout()
         right.setSpacing(15)
 
@@ -108,11 +102,9 @@ class VoteResults(QWidget):
         self.question_lbl.setWordWrap(True)
         right.addWidget(self.question_lbl)
 
-        # Contenu : labels + graphiques
         content = QHBoxLayout()
         content.setSpacing(20)
 
-        # Labels
         labels_frame = QFrame()
         labels_frame.setStyleSheet("QFrame { background: #2e0055; border-radius:8px; }")
         self.labels_layout = QVBoxLayout(labels_frame)
@@ -123,7 +115,6 @@ class VoteResults(QWidget):
         scroll.setWidget(labels_frame)
         content.addWidget(scroll, 1)
 
-        # Bar + pie
         self.fig, (self.ax_bar, self.ax_pie) = plt.subplots(
             2, 1, figsize=(4, 5), constrained_layout=True
         )
@@ -132,7 +123,6 @@ class VoteResults(QWidget):
 
         right.addLayout(content, 2)
 
-        # Évolution du total et step charts
         evo = QHBoxLayout()
         evo.setSpacing(20)
 
@@ -175,14 +165,12 @@ class VoteResults(QWidget):
             self.comm.new_vote.emit(q, ch, ts)
 
     def add_poll(self, idx, question, choices):
-        # stockage
         self.polls.append({"question": question, "choices": choices})
         self.vote_counts_list.append({c: 0 for c in choices})
         self.time_series_total_list.append([])
         self.series_per_choice_list.append({c: [] for c in choices})
         self.start_times.append(None)
 
-        # bouton sondage : inséré avant le stretch
         btn = QPushButton(question)
         btn.setStyleSheet(
             "QPushButton { color:white; background:#1a0033; text-align:left; padding:8px; border:none; }"
@@ -218,10 +206,8 @@ class VoteResults(QWidget):
         poll   = self.polls[idx]
         counts = self.vote_counts_list[idx]
 
-        # question
         self.question_lbl.setText(poll["question"])
 
-        # labels : vider avant d'ajouter
         while self.labels_layout.count():
             it = self.labels_layout.takeAt(0)
             w = it.widget()
@@ -234,7 +220,6 @@ class VoteResults(QWidget):
             self.labels_layout.addWidget(lbl)
         self.labels_layout.addStretch(1)
 
-        # graphiques
         self.update_histogram(counts)
         self.update_pie(counts)
         self.update_time_total(idx)
@@ -261,18 +246,14 @@ class VoteResults(QWidget):
 
     def update_pie(self, counts):
         """Met à jour le camembert, ou affiche un message sans axes s'il n'y a pas de votes."""
-        # Ne conserver que les choix ayant au moins un vote
         choices = [c for c, v in counts.items() if v > 0]
         votes   = [v for v in counts.values()   if v > 0]
 
-        # Effacer l'ancien tracé
         self.ax_pie.clear()
 
         if choices:
-            # Tracer le camembert
             self.ax_pie.pie(votes, labels=choices, autopct="%1.1f%%")
         else:
-            # Afficher un message "Pas de votes" et masquer complètement les axes
             self.ax_pie.text(
                 0.5, 0.5,
                 "Pas de votes",
@@ -282,9 +263,7 @@ class VoteResults(QWidget):
             self.ax_pie.set_xticks([])
             self.ax_pie.set_yticks([])
 
-        # Fond blanc pour la zone de tracé
         self.ax_pie.set_facecolor("white")
-        # Rafraîchir le canvas
         self.canvas.draw()
 
 
@@ -293,7 +272,6 @@ class VoteResults(QWidget):
         self.time_ax.clear()
         if data:
             xs, ys = zip(*data)
-            # tracer en escalier
             self.time_ax.step(xs, ys, where='post', label='Total')
             self.time_ax.set_xlabel("s")
             self.time_ax.set_ylabel("Total")
@@ -318,7 +296,6 @@ class VoteResults(QWidget):
             self.choice_ax.legend(fontsize=8)
             self.choice_ax.set_xlabel("s")
             self.choice_ax.set_ylabel("Votes")
-            # idem, démarrage à 0
             self.choice_ax.set_xlim(left=0)
         else:
             self.choice_ax.text(

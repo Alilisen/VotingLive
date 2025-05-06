@@ -3,20 +3,13 @@ import json
 import traceback
 from functools import partial
 from datetime import datetime
-
-# Vérification paho-mqtt et PyQt5
-try:
-    import paho.mqtt.client as mqtt
-    from PyQt5.QtCore import Qt, pyqtSignal
-    from PyQt5.QtWidgets import (
-        QApplication, QWidget, QVBoxLayout, QLabel,
-        QPushButton, QMessageBox, QGridLayout, QLineEdit,
-        QScrollArea
-    )
-except ImportError as e:
-    print("Module manquant :", e)
-    print("Installez-les avec : pip install paho-mqtt PyQt5")
-    sys.exit(1)
+import paho.mqtt.client as mqtt
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QLabel,
+    QPushButton, QMessageBox, QGridLayout, QLineEdit,
+    QScrollArea
+)
 
 # -------- CONFIGURATION --------
 BROKER         = "broker.hivemq.com"
@@ -28,7 +21,7 @@ TOPIC_VOTE     = "votinglivepoll/vote"
 class WelcomeWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Bienvenue – Voting Live")
+        self.setWindowTitle("Voting Live - Client")
         self.resize(400, 200)
         self.setStyleSheet("background-color: #1f0036; color: white;")
 
@@ -72,29 +65,25 @@ class WelcomeWindow(QWidget):
             traceback.print_exc()
 
 class VotingClient(QWidget):
-    # signal: index, question, choices
     question_signal = pyqtSignal(int, str, list)
 
     def __init__(self, pseudo):
         super().__init__()
         self.pseudo = pseudo
-        self.polls = []             # stockage des sondages reçus
-        self.voted_polls = set()    # indices des sondages déjà votés
+        self.polls = []
+        self.voted_polls = set()
         self.current_poll_idx = None
 
-        # nouveau dict local pour compter les votes par question/choix
         self.vote_counts = {}
 
         self.setWindowTitle(f"Sondage live — {pseudo}")
         self.resize(800, 600)
         self.setStyleSheet("background-color: #0d0026;")
 
-        # Layout principal
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(40, 40, 40, 40)
         self.main_layout.setSpacing(30)
 
-        # Label question
         self.lbl_question = QLabel("En attente de question…")
         self.lbl_question.setWordWrap(True)
         self.lbl_question.setAlignment(Qt.AlignCenter)
@@ -105,13 +94,11 @@ class VotingClient(QWidget):
         )
         self.main_layout.addWidget(self.lbl_question)
 
-        # Grille choix
         self.grid = QGridLayout()
         self.grid.setSpacing(20)
         self.main_layout.addLayout(self.grid)
         self.buttons = []
 
-        # Zone liste des sondages
         self.scroll_area = QScrollArea()
         self.scroll_area.setStyleSheet("border: none;")
         self.scroll_area.setWidgetResizable(True)
@@ -123,10 +110,8 @@ class VotingClient(QWidget):
         self.scroll_area.hide()
         self.main_layout.addWidget(self.scroll_area)
 
-        # Connexion du signal
         self.question_signal.connect(self.handle_question)
 
-        # Démarrer MQTT
         try:
             self.start_mqtt()
         except Exception:
@@ -150,15 +135,12 @@ class VotingClient(QWidget):
         if msg.topic == TOPIC_QUESTION:
             question = data["question"]
             choices  = data["choices"]
-            # initialise le compteur local pour cette question
             self.vote_counts[question] = {c: 0 for c in choices}
-            # stocker et émettre
             idx = len(self.polls)
             self.polls.append((question, choices))
             self.question_signal.emit(idx, question, choices)
 
         elif msg.topic == TOPIC_VOTE:
-            # réception globale des votes
             q = data.get("question")
             r = data.get("reponse")
             if q in self.vote_counts and r in self.vote_counts[q]:
@@ -168,21 +150,17 @@ class VotingClient(QWidget):
         self.current_poll_idx = idx
         already_voted = idx in self.voted_polls
 
-        # Afficher question, cacher liste
         self.scroll_area.hide()
         self.lbl_question.show()
         for b in self.buttons:
             b.show()
 
-        # Mettre à jour question et choix
         self.lbl_question.setText(question)
-        # Nettoyer anciens boutons
         for b in self.buttons:
             self.grid.removeWidget(b)
             b.deleteLater()
         self.buttons.clear()
 
-        # Créer boutons de choix
         for i, text in enumerate(choices):
             btn = QPushButton(f"{chr(65 + i)}. {text}")
             btn.setMinimumHeight(60)
@@ -213,12 +191,10 @@ class VotingClient(QWidget):
         })
         self.client.publish(TOPIC_VOTE, payload)
 
-        # MAJ locale immédiate + calcul du pourcentage
         self.vote_counts[question][choice] += 1
         total = sum(self.vote_counts[question].values())
         pct   = self.vote_counts[question][choice] / total * 100
 
-        # Confirmation
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Information)
         msg.setWindowTitle("Succès")
@@ -234,12 +210,10 @@ class VotingClient(QWidget):
         )
         msg.exec_()
 
-        # Marquer module comme voté
         self.voted_polls.add(idx)
         for b in self.buttons:
             b.setEnabled(False)
 
-        # Afficher liste des sondages restants
         self.show_poll_list()
 
     def show_poll_list(self):

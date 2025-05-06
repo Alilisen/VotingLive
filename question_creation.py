@@ -25,7 +25,7 @@ client.connect("broker.hivemq.com", 1883)
 class QuestionCreator(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Créateur de question - Style Jeu TV")
+        self.setWindowTitle("Création de question")
         self.setStyleSheet("background-color: #1f0036;")
         self.resize(700, 600)
 
@@ -96,7 +96,7 @@ class QuestionCreator(QWidget):
         self.update_choice_fields(4)
 
         # Bouton publier
-        send_btn = QPushButton("📤 Publier la question")
+        send_btn = QPushButton("Publier la question")
         send_btn.setMinimumHeight(50)
         send_btn.setStyleSheet("""
             QPushButton {
