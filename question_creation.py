@@ -21,6 +21,7 @@ client = paho.Client(client_id="", userdata=None, protocol=paho.MQTTv5)
 client.on_connect = on_connect
 client.on_publish = on_publish  
 client.connect("broker.hivemq.com", 1883)
+client.loop_start()
 
 class QuestionCreator(QWidget):
     def __init__(self):
