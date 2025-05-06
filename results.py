@@ -293,8 +293,12 @@ class VoteResults(QWidget):
         self.time_ax.clear()
         if data:
             xs, ys = zip(*data)
-            self.time_ax.plot(xs, ys, marker="o")
-            self.time_ax.set_xlabel("s"); self.time_ax.set_ylabel("Total")
+            # tracer en escalier
+            self.time_ax.step(xs, ys, where='post', label='Total')
+            self.time_ax.set_xlabel("s")
+            self.time_ax.set_ylabel("Total")
+            self.time_ax.set_xlim(left=0)
+            self.time_ax.legend()
         else:
             self.time_ax.text(
                 0.5, 0.5, "Pas de votes",
@@ -312,7 +316,10 @@ class VoteResults(QWidget):
                 self.choice_ax.step(xs, ys, where="post", label=c)
         if any(spc.values()):
             self.choice_ax.legend(fontsize=8)
-            self.choice_ax.set_xlabel("s"); self.choice_ax.set_ylabel("Votes")
+            self.choice_ax.set_xlabel("s")
+            self.choice_ax.set_ylabel("Votes")
+            # idem, démarrage à 0
+            self.choice_ax.set_xlim(left=0)
         else:
             self.choice_ax.text(
                 0.5, 0.5, "Pas de votes",
