@@ -37,12 +37,10 @@ class VoteResults(QWidget):
         self.series_per_choice_list = []
         self.start_times            = []
 
-        # Signaux
         self.comm = Communicate()
         self.comm.new_poll.connect(self.add_poll)
         self.comm.new_vote.connect(self.record_vote)
 
-        # UI + MQTT
         self.init_ui()
         self.init_mqtt()
 

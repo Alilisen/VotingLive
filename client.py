@@ -58,11 +58,8 @@ class WelcomeWindow(QWidget):
         if not pseudo:
             QMessageBox.warning(self, "Erreur", "Veuillez entrer un pseudo.")
             return
-        try:
-            self.client = VotingClient(pseudo)
-            self.close()
-        except Exception:
-            traceback.print_exc()
+        self.client = VotingClient(pseudo)
+        self.close()
 
 class VotingClient(QWidget):
     question_signal = pyqtSignal(int, str, list)
@@ -112,10 +109,7 @@ class VotingClient(QWidget):
 
         self.question_signal.connect(self.handle_question)
 
-        try:
-            self.start_mqtt()
-        except Exception:
-            traceback.print_exc()
+        self.start_mqtt()
 
         self.show()
 
@@ -255,8 +249,5 @@ class VotingClient(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    try:
-        w = WelcomeWindow()
-        sys.exit(app.exec_())
-    except Exception:
-        traceback.print_exc()
+    w = WelcomeWindow()
+    sys.exit(app.exec_())
